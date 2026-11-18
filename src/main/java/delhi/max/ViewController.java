@@ -2,6 +2,7 @@ package delhi.max;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -14,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.ModelAndView;
 
 @Controller
@@ -22,7 +24,7 @@ public class ViewController {
 	LocationDAO locationDAO;
 
 	@RequestMapping(value = "viewjsp", method = RequestMethod.GET)
-	public ModelAndView viewDetail() {
+	public ModelAndView viewDetail(@RequestParam(value = "deleted", required = false) String deleted) {
 		Iterable<RegDTO> list = locationDAO.getResDetail();
 
 		// Location maps for code -> name lookup
@@ -45,7 +47,7 @@ public class ViewController {
 			}
 		}
 
-		// Calculate Analytics Metrics
+		// Calculate Analytics Metrics & Demographic Breakdown
 		int totalResidents = 0;
 		Set<String> uniqueStates = new HashSet<>();
 		Set<String> uniqueDistricts = new HashSet<>();
@@ -75,15 +77,42 @@ public class ViewController {
 			}
 		}
 
+		// Build State Distribution data structure for charts / breakdown bars
+		List<Map<String, Object>> stateBreakdown = new ArrayList<>();
+		String[] barColors = new String[] { "#1a73e8", "#1e8e3e", "#f29900", "#9334e6", "#e8710a", "#12b5cb" };
+		int colorIdx = 0;
+		for (Map.Entry<String, Integer> entry : stateCounts.entrySet()) {
+			Map<String, Object> item = new HashMap<>();
+			item.put("stateName", entry.getKey());
+			item.put("count", entry.getValue());
+			double pct = totalResidents > 0 ? (entry.getValue() * 100.0 / totalResidents) : 0;
+			item.put("percentage", Math.round(pct * 10.0) / 10.0);
+			item.put("color", barColors[colorIdx % barColors.length]);
+			colorIdx++;
+			stateBreakdown.add(item);
+		}
+
 		ModelAndView mv = new ModelAndView("view");
 		mv.addObject("v", list);
 		mv.addObject("stateMap", stateMap);
 		mv.addObject("distMap", distMap);
+		mv.addObject("stateList", stateList);
+		mv.addObject("distList", distList);
+		mv.addObject("stateBreakdown", stateBreakdown);
 		mv.addObject("totalResidents", totalResidents);
 		mv.addObject("totalStates", uniqueStates.size());
 		mv.addObject("totalDistricts", uniqueDistricts.size());
 		mv.addObject("topState", topState);
+		if ("true".equalsIgnoreCase(deleted)) {
+			mv.addObject("deletedAlert", "Record has been successfully removed from the civic database.");
+		}
 		return mv;
+	}
+
+	@RequestMapping(value = "deleteResident", method = RequestMethod.GET)
+	public String deleteResident(@RequestParam("rid") int rid) {
+		locationDAO.deleteResident(rid);
+		return "redirect:/viewjsp?deleted=true";
 	}
 
 	@RequestMapping(value = "exportCsv", method = RequestMethod.GET)

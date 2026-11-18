@@ -36,5 +36,15 @@ public class LocationDAO {
 	{
 		return (List<DistBean>) distInterface.findAll();
 	}
+
+	public boolean deleteResident(int rid) {
+		try {
+			regInterface.deleteById(rid);
+			return true;
+		} catch (Exception e) {
+			e.printStackTrace();
+			return false;
+		}
+	}
 	
 }
